@@ -1,0 +1,12 @@
+fastapi
+uvicorn
+pandas
+torch
+transformers
+chronos-forecasting
+python-dotenv
+langchain
+langchain-google-genai
+pydantic
+pytest
+python-multipart
