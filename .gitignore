@@ -1,2 +1,5 @@
 # Environment secrets – never commit
 .env
+
+# Do not commit secrets
+.env
