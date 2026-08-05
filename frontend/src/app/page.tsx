@@ -14,7 +14,23 @@ import {
   Legend, 
   ComposedChart 
 } from "recharts";
-import { Upload, Flame, Sparkles, AlertCircle, FileText, CheckCircle2, TrendingUp, DollarSign } from "lucide-react";
+import { 
+  Upload, 
+  Flame, 
+  Sparkles, 
+  AlertCircle, 
+  FileText, 
+  CheckCircle2, 
+  TrendingUp, 
+  DollarSign,
+  Bot,
+  Zap,
+  ExternalLink,
+  ChevronDown,
+  ChevronUp,
+  Loader2,
+  ShieldAlert
+} from "lucide-react";
 
 interface HistoricalData {
   date: string;
@@ -28,10 +44,19 @@ interface ForecastData {
   p90: number;
 }
 
+interface CopilotAction {
+  target_vendor: string;
+  action_mode: "playwright_auto" | "tavily_search";
+  requires_auth: boolean;
+  target_url?: string | null;
+  instructions?: string | null;
+}
+
 interface APIResponse {
   historical: HistoricalData[];
   forecast: ForecastData[];
   roast: string;
+  copilot_action?: CopilotAction | null;
 }
 
 export default function Home() {
@@ -44,6 +69,12 @@ export default function Home() {
   const [data, setData] = useState<APIResponse | null>(null);
   const [showPaste, setShowPaste] = useState(false);
   const [pasteContent, setPasteContent] = useState("");
+
+  // Copilot Action States
+  const [killing, setKilling] = useState(false);
+  const [killSuccess, setKillSuccess] = useState(false);
+  const [killError, setKillError] = useState<string | null>(null);
+  const [showSteps, setShowSteps] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -103,6 +134,10 @@ export default function Home() {
     setLoadingStep(0);
     setError(null);
     setData(null);
+    setKilling(false);
+    setKillSuccess(false);
+    setKillError(null);
+    setShowSteps(false);
 
     const formData = new FormData();
     formData.append("file", uploadFile);
@@ -120,7 +155,6 @@ export default function Home() {
       }
 
       const result = await response.json();
-      // Ensure smooth visual transition
       setTimeout(() => {
         setData(result);
         setLoading(false);
@@ -144,6 +178,36 @@ export default function Home() {
     }
     const pastedFile = new File([pasteContent], "pasted_transactions.csv", { type: "text/csv" });
     triggerUpload(pastedFile);
+  };
+
+  const handleKillSubscription = async (copilotAction: CopilotAction) => {
+    setKilling(true);
+    setKillError(null);
+    setKillSuccess(false);
+
+    try {
+      const response = await fetch("http://localhost:8055/cancel-subscription", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          vendor: copilotAction.target_vendor,
+          url: copilotAction.target_url || "https://www.google.com",
+          requires_auth: copilotAction.requires_auth
+        })
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.detail || "Failed to execute Playwright cancellation.");
+      }
+
+      const result = await response.json();
+      setKilling(false);
+      setKillSuccess(true);
+    } catch (err: any) {
+      setKilling(false);
+      setKillError(err.message || "Error executing subscription cancellation.");
+    }
   };
 
   // Process data for Recharts composed view (combines historical and forecast)
@@ -194,13 +258,13 @@ export default function Home() {
                 FinRoast
               </h1>
               <p className="text-[10px] text-slate-400 font-mono tracking-widest uppercase">
-                Zero-Shot Financial Intervention
+                Zero-Shot Financial Intervention & Subscription Copilot
               </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <span className="h-2 w-2 rounded-full bg-emerald-500 animate-ping"></span>
-            <span className="text-xs font-mono text-slate-400">Chronos v0.1 Active</span>
+            <span className="text-xs font-mono text-slate-400">Chronos v0.1 + Playwright Copilot</span>
           </div>
         </div>
       </header>
@@ -212,10 +276,10 @@ export default function Home() {
         {!data && !loading && (
           <div className="text-center max-w-2xl mx-auto my-12 flex flex-col gap-4">
             <h2 className="text-4xl font-extrabold tracking-tight sm:text-5xl bg-gradient-to-b from-white to-slate-400 bg-clip-text text-transparent">
-              Upload transactions.<br />Get roasted.
+              Upload transactions.<br />Get roasted. Kill parasitic subscriptions.
             </h2>
             <p className="text-slate-400 text-lg">
-              FinRoast aggregates your historical bank statements, executes a 14-day zero-shot forecasting model, and roasts your financial behavior under strict safety guardrails.
+              FinRoast aggregates your bank statements, forecasts 14-day spending, delivers AI roasts, and deploys an automated Copilot to eliminate unwanted recurring charges.
             </p>
           </div>
         )}
@@ -328,7 +392,6 @@ export default function Home() {
         {/* Elegant Loading View */}
         {loading && (
           <div className="max-w-xl w-full mx-auto my-12 bg-slate-900/40 border border-slate-800/80 backdrop-blur-md p-10 rounded-3xl flex flex-col items-center gap-8 shadow-2xl">
-            {/* Spinning Flame Indicator */}
             <div className="relative flex items-center justify-center">
               <div className="w-24 h-24 rounded-full border-4 border-slate-800 border-t-rose-500 animate-spin"></div>
               <div className="absolute p-4 bg-slate-950 border border-slate-850 rounded-full shadow-xl">
@@ -336,7 +399,6 @@ export default function Home() {
               </div>
             </div>
             
-            {/* Steps Visualizer */}
             <div className="w-full flex flex-col gap-3">
               <div className="flex items-center gap-3">
                 <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs ${loadingStep >= 0 ? "bg-rose-500 text-white" : "bg-slate-800 text-slate-400"}`}>
@@ -351,7 +413,7 @@ export default function Home() {
                   {loadingStep > 1 ? "✓" : "2"}
                 </div>
                 <p className={`text-sm ${loadingStep >= 1 ? "text-slate-200 font-medium" : "text-slate-500"}`}>
-                  Executing Amazon Chronos zero-shot forecast...
+                  Executing Amazon Chronos zero-shot forecast & Copilot scan...
                 </p>
               </div>
               <div className="flex items-center gap-3">
@@ -365,12 +427,12 @@ export default function Home() {
             </div>
             
             <p className="text-xs font-mono text-slate-500 animate-pulse">
-              Please wait, this will take about 4 seconds...
+              Please wait, processing analytics...
             </p>
           </div>
         )}
 
-        {/* Dashboard and AI Roast presentation */}
+        {/* Dashboard, AI Roast, and Copilot Action Card */}
         {data && (
           <div className="flex flex-col gap-8">
             
@@ -399,6 +461,127 @@ export default function Home() {
                 </div>
               </div>
             </div>
+
+            {/* STAGE 2: Copilot Action Card (Conditional Component) */}
+            {data.copilot_action && (
+              <div className="relative overflow-hidden bg-slate-900/60 border border-rose-500/30 rounded-3xl p-8 shadow-2xl backdrop-blur-md">
+                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+                  
+                  {/* Left Column: Copilot Details */}
+                  <div className="flex items-start gap-4">
+                    <div className="p-3.5 bg-rose-500/10 border border-rose-500/30 rounded-2xl text-rose-400 flex-shrink-0 mt-1">
+                      <Bot className="w-7 h-7 animate-bounce" />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-mono tracking-wider uppercase bg-rose-500/20 border border-rose-500/40 text-rose-300 px-2.5 py-0.5 rounded-full font-bold">
+                          Subscription Killer Copilot
+                        </span>
+                        <span className="text-xs text-slate-400 font-mono flex items-center gap-1">
+                          <Zap className="w-3.5 h-3.5 text-amber-400" />
+                          {data.copilot_action.action_mode === "playwright_auto" ? "Playwright Attended Bot" : "Tavily Search Assist"}
+                        </span>
+                      </div>
+
+                      <h4 className="text-xl font-extrabold text-slate-100 mt-1">
+                        Flagged Recurring Charge: <span className="text-rose-400 underline decoration-rose-500/40">{data.copilot_action.target_vendor}</span>
+                      </h4>
+
+                      {data.copilot_action.action_mode === "playwright_auto" ? (
+                        <p className="text-sm text-slate-400 mt-0.5">
+                          Playwright execution engine is ready to intervene and eliminate this subscription automatically.
+                          {data.copilot_action.requires_auth && (
+                            <span className="block text-xs text-amber-300 font-mono mt-1 flex items-center gap-1">
+                              <ShieldAlert className="w-3.5 h-3.5 text-amber-400 inline" />
+                              A browser window will open for you to enter your password.
+                            </span>
+                          )}
+                        </p>
+                      ) : (
+                        <p className="text-sm text-slate-400 mt-0.5">
+                          Tavily search assist has located direct cancellation instructions and billing page link.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Right Column: Action Buttons */}
+                  <div className="flex flex-col items-end gap-3 w-full md:w-auto">
+                    {data.copilot_action.action_mode === "playwright_auto" ? (
+                      <button
+                        id="kill-subscription-btn"
+                        disabled={killing || killSuccess}
+                        onClick={() => data.copilot_action && handleKillSubscription(data.copilot_action)}
+                        className={`w-full md:w-auto px-6 py-3.5 rounded-2xl font-bold text-sm shadow-xl flex items-center justify-center gap-2 transition-all duration-300 ${
+                          killSuccess
+                            ? "bg-emerald-600 text-white border border-emerald-500"
+                            : killing
+                            ? "bg-rose-950 border border-rose-500/50 text-rose-300 cursor-not-allowed"
+                            : "bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white shadow-rose-950/40 hover:scale-[1.02]"
+                        }`}
+                      >
+                        {killing ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin text-rose-400" />
+                            <span>Agent Deploying...</span>
+                          </>
+                        ) : killSuccess ? (
+                          <>
+                            <CheckCircle2 className="w-4 h-4 text-white" />
+                            <span>Subscription Cancellation Executed!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Zap className="w-4 h-4 text-white fill-white" />
+                            <span>Kill {data.copilot_action.target_vendor} Subscription (Auto-Bot)</span>
+                          </>
+                        )}
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setShowSteps(!showSteps)}
+                        className="w-full md:w-auto px-6 py-3 border border-slate-700 hover:border-slate-600 bg-slate-800/80 hover:bg-slate-800 text-slate-200 font-semibold text-sm rounded-2xl flex items-center justify-center gap-2 transition-all"
+                      >
+                        <span>View Cancellation Steps</span>
+                        {showSteps ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+                      </button>
+                    )}
+                  </div>
+
+                </div>
+
+                {/* Kill Error Notice */}
+                {killError && (
+                  <div className="mt-4 p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-xs text-rose-400 flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                    <span>{killError}</span>
+                  </div>
+                )}
+
+                {/* Tavily Steps Accordion Expansion */}
+                {data.copilot_action.action_mode === "tavily_search" && showSteps && (
+                  <div className="mt-6 pt-6 border-t border-slate-800 flex flex-col gap-4">
+                    <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-5 text-sm text-slate-300 leading-relaxed font-sans">
+                      <p className="font-semibold text-slate-200 mb-2">Cancellation Instructions:</p>
+                      <p className="text-slate-400 text-xs">
+                        {data.copilot_action.instructions || `Navigate to your ${data.copilot_action.target_vendor} account settings page to cancel your plan.`}
+                      </p>
+                    </div>
+                    {data.copilot_action.target_url && (
+                      <a
+                        href={data.copilot_action.target_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="self-start px-5 py-2.5 bg-slate-800 hover:bg-slate-750 border border-slate-700 text-slate-200 text-xs font-semibold rounded-xl flex items-center gap-2 transition-all"
+                      >
+                        <span>Open Direct Cancellation Link</span>
+                        <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
+                      </a>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Quick Metrics Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
