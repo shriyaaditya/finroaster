@@ -29,6 +29,20 @@
     },
     "roast": {
       "type": "string"
+    },
+    "copilot_action": {
+      "type": ["object", "null"],
+      "properties": {
+        "target_vendor": { "type": "string" },
+        "action_mode": {
+          "type": "string",
+          "enum": ["playwright_auto", "tavily_search"]
+        },
+        "requires_auth": { "type": "boolean" },
+        "target_url": { "type": ["string", "null"] },
+        "instructions": { "type": ["string", "null"] }
+      },
+      "required": ["target_vendor", "action_mode", "requires_auth"]
     }
   },
   "required": ["historical", "forecast", "roast"]
