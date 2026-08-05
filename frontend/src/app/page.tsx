@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import { usePlaidLink } from "react-plaid-link";
 import { 
   ResponsiveContainer, 
   AreaChart, 
@@ -29,7 +30,8 @@ import {
   ChevronDown,
   ChevronUp,
   Loader2,
-  ShieldAlert
+  ShieldAlert,
+  Landmark
 } from "lucide-react";
 
 interface HistoricalData {
@@ -70,6 +72,10 @@ export default function Home() {
   const [showPaste, setShowPaste] = useState(false);
   const [pasteContent, setPasteContent] = useState("");
 
+  // Plaid States
+  const [linkToken, setLinkToken] = useState<string | null>(null);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
+
   // Copilot Action States
   const [killing, setKilling] = useState(false);
   const [killSuccess, setKillSuccess] = useState(false);
@@ -78,9 +84,93 @@ export default function Home() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Fetch Plaid Link Token on mount
   useEffect(() => {
     setMounted(true);
+    const fetchLinkToken = async () => {
+      try {
+        const response = await fetch("http://localhost:8055/api/create_link_token", {
+          method: "POST"
+        });
+        if (response.ok) {
+          const resData = await response.json();
+          setLinkToken(resData.link_token);
+        }
+      } catch (err) {
+        console.error("Failed to fetch Plaid link token:", err);
+      }
+    };
+    fetchLinkToken();
   }, []);
+
+  const triggerPlaidForecast = async (token: string) => {
+    setLoading(true);
+    setLoadingStep(0);
+    setError(null);
+    setData(null);
+    setKilling(false);
+    setKillSuccess(false);
+    setKillError(null);
+    setShowSteps(false);
+
+    try {
+      const response = await fetch("http://localhost:8055/forecast/plaid", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ access_token: token })
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.detail || "Failed to process Plaid transactions.");
+      }
+
+      const result = await response.json();
+      setTimeout(() => {
+        setData(result);
+        setLoading(false);
+      }, 3500);
+
+    } catch (err: any) {
+      setError(err.message || "Error connecting to backend for Plaid forecast.");
+      setLoading(false);
+    }
+  };
+
+  const onSuccessPlaid = useCallback(async (public_token: string | null) => {
+    setLoading(true);
+    setLoadingStep(0);
+    setError(null);
+    if (!public_token) {
+      setError("Plaid returned no public token.");
+      setLoading(false);
+      return;
+    }
+    try {
+      const res = await fetch("http://localhost:8055/api/set_access_token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ public_token })
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to exchange Plaid public token.");
+      }
+
+      const tokenData = await res.json();
+      setAccessToken(tokenData.access_token);
+      await triggerPlaidForecast(tokenData.access_token);
+
+    } catch (err: any) {
+      setError(err.message || "Error completing Plaid authentication.");
+      setLoading(false);
+    }
+  }, []);
+
+  const { open: openPlaid, ready: plaidReady } = usePlaidLink({
+    token: linkToken,
+    onSuccess: onSuccessPlaid,
+  });
 
   // Loading micro-animation steps
   useEffect(() => {
@@ -357,7 +447,19 @@ export default function Home() {
                       CSV should contain headers: <code className="text-slate-400 bg-slate-950 px-1.5 py-0.5 rounded font-mono">Date</code>, <code className="text-slate-400 bg-slate-950 px-1.5 py-0.5 rounded font-mono">Amount</code>, <code className="text-slate-400 bg-slate-950 px-1.5 py-0.5 rounded font-mono">Category</code>
                     </p>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-wrap items-center justify-center gap-3">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openPlaid();
+                      }}
+                      disabled={!plaidReady}
+                      className="mt-2 px-6 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-50 text-white text-sm font-semibold rounded-full shadow-lg shadow-emerald-950/30 flex items-center gap-2 transition-all duration-200"
+                    >
+                      <Landmark className="w-4 h-4 text-white" />
+                      <span>Connect Bank (Plaid)</span>
+                    </button>
                     <button
                       type="button"
                       className="mt-2 px-6 py-2.5 bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-500 hover:to-amber-500 text-white text-sm font-semibold rounded-full shadow-lg shadow-rose-950/20 transition-all duration-200"
@@ -375,6 +477,7 @@ export default function Home() {
                       Paste CSV Text
                     </button>
                   </div>
+
                 </div>
               </div>
             )}
