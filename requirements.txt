@@ -7,6 +7,10 @@ chronos-forecasting
 python-dotenv
 langchain
 langchain-google-genai
+langchain-community
+tavily-python
+cachetools
 pydantic
 pytest
 python-multipart
+playwright
