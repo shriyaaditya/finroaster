@@ -276,27 +276,26 @@ export default function Home() {
     setKillSuccess(false);
 
     try {
-      const response = await fetch("http://localhost:8055/cancel-subscription", {
+      const response = await fetch("http://localhost:8055/api/cancellation-tasks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           vendor: copilotAction.target_vendor,
-          url: copilotAction.target_url || "https://www.google.com",
-          requires_auth: copilotAction.requires_auth
+          target_url: copilotAction.target_url || "https://www.google.com"
         })
       });
 
       if (!response.ok) {
         const errData = await response.json();
-        throw new Error(errData.detail || "Failed to execute Playwright cancellation.");
+        throw new Error(errData.detail || "Failed to dispatch cancellation task.");
       }
 
-      const result = await response.json();
+      await response.json();
       setKilling(false);
       setKillSuccess(true);
     } catch (err: any) {
       setKilling(false);
-      setKillError(err.message || "Error executing subscription cancellation.");
+      setKillError(err.message || "Error dispatching task to Chrome Extension.");
     }
   };
 
@@ -354,7 +353,7 @@ export default function Home() {
           </div>
           <div className="flex items-center gap-2">
             <span className="h-2 w-2 rounded-full bg-emerald-500 animate-ping"></span>
-            <span className="text-xs font-mono text-slate-400">Chronos v0.1 + Playwright Copilot</span>
+            <span className="text-xs font-mono text-slate-400">Chronos v0.1 + Extension Co-Pilot</span>
           </div>
         </div>
       </header>
@@ -626,17 +625,17 @@ export default function Home() {
                         {killing ? (
                           <>
                             <Loader2 className="w-4 h-4 animate-spin text-rose-400" />
-                            <span>Agent Deploying...</span>
+                            <span>Dispatching to FinRoast Extension Co-Pilot...</span>
                           </>
                         ) : killSuccess ? (
                           <>
                             <CheckCircle2 className="w-4 h-4 text-white" />
-                            <span>Subscription Cancellation Executed!</span>
+                            <span>Dispatched to Extension Co-Pilot!</span>
                           </>
                         ) : (
                           <>
                             <Zap className="w-4 h-4 text-white fill-white" />
-                            <span>Kill {data.copilot_action.target_vendor} Subscription (Auto-Bot)</span>
+                            <span>Kill {data.copilot_action.target_vendor} Subscription (Extension Co-Pilot)</span>
                           </>
                         )}
                       </button>
