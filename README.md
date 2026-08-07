@@ -22,6 +22,45 @@ graph TD
 * **Chronos Forecasting (`main.py`):** Uses the pre-trained `amazon/chronos-t5-small` model to generate 10th, 50th, and 90th percentile forecasts for the next 14 days based on daily spending totals.
 * **LLM Roast Generation (`roaster.py`):** Utilizes `langchain-google-genai` with `gemini-3.5-flash` to analyze transaction categories and forecast spikes to generate a roast. It leverages custom runnables and Pydantic output parsers to enforce structured schema conformance.
 
+### 📊 Calculations Logic & Flow
+
+The backend performs two core calculations:
+
+1. **Time‑Series Forecasting (Chronos)**
+   - `main.py` loads the pre‑trained `amazon/chronos-t5-small` model.
+   - The uploaded CSV is aggregated by date to produce a daily spend series.
+   - The model receives the series and returns the 10th, 50th, and 90th percentile forecasts for the next 14 days.
+   - Results are wrapped in a `ForecastResult` Pydantic model and returned in the API response.
+
+2. **LLM Roast Generation**
+   - `roaster.py` receives the forecast and the categorized transaction summary.
+   - It builds a prompt that describes spending spikes and asks Gemini 3.5 Flash to generate a sarcastic roast.
+   - A custom `Runnable` and `OutputParser` enforce the response schema:
+     ```json
+     { "roast": "string" }
+     ```
+   - The roast is injected into the final JSON payload.
+
+Optional **PII Masking** (if enabled):
+   - `pii_masker.py` scans the raw CSV for personally identifiable information using regex patterns.
+   - Detected fields are replaced with `***` before any further processing.
+
+The overall flow can be visualized as:
+
+```mermaid
+flowchart LR
+    A[Upload CSV] --> B[Aggregate daily spend]
+    B --> C[Chronos forecast]
+    C --> D[Category analysis]
+    D --> E[LLM roast generation]
+    E --> F[Return JSON response]
+    subgraph Optional
+        G[PII Masking] --> B
+    end
+```
+
+This section clarifies the calculation pipeline that powers the API response.
+
 ### 2. Frontend (`Next.js`)
 * **Location:** `/frontend` directory.
 * **Port:** Runs on `http://localhost:3055` (configurable).
